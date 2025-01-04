@@ -14,6 +14,8 @@
 #include <QProcess>
 #include <QTextEdit>
 #include <QLabel>
+#include "customlistwidget.h"
+#include <QAudioOutput>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -39,6 +41,7 @@ private slots:
     void mergeVideos();
     void onMergeProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void appendLog(const QString &text);
+    void onItemMoved();
 
 private:
     void setupUI();
@@ -59,7 +62,7 @@ private:
     QSplitter *mainSplitter;
     
     // 左侧视频列表
-    QListWidget *videoList;
+    CustomListWidget *videoList;
     QMenu *listContextMenu;
 
     // 右侧视频播放区域
@@ -84,5 +87,7 @@ private:
     QLabel *totalTimeLabel;
 
     QProcess *thumbnailProcess;  // 用于提取缩略图
+
+    QAudioOutput* audioOutput;
 };
 #endif // MAINWINDOW_H

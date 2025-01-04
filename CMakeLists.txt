@@ -33,6 +33,8 @@ set(PROJECT_SOURCES
     mainwindow.cpp
     mainwindow.h
     mainwindow.ui
+    customlistwidget.h
+    customlistwidget.cpp
 )
 
 add_executable(FilmTool

@@ -74,17 +74,26 @@ void MainWindow::setupUI()
 
 void MainWindow::createVideoList()
 {
-    videoList = new QListWidget(mainSplitter);
+    videoList = new CustomListWidget(mainSplitter);
     videoList->setContextMenuPolicy(Qt::CustomContextMenu);
     
     // 设置图标视图模式
     videoList->setViewMode(QListWidget::IconMode);
-    videoList->setIconSize(QSize(160, 90));  // 16:9 比例的缩略图
+    videoList->setIconSize(QSize(160, 90));
     videoList->setSpacing(10);
-    videoList->setMovement(QListWidget::Static);
+    videoList->setMovement(QListWidget::Snap);
     videoList->setResizeMode(QListWidget::Adjust);
-    videoList->setWrapping(true);
+    videoList->setWrapping(false);
     videoList->setUniformItemSizes(true);
+    videoList->setFlow(QListWidget::TopToBottom);
+    videoList->setGridSize(QSize(180, 130));
+    
+    // 启用拖放
+    videoList->setDragEnabled(true);
+    videoList->setAcceptDrops(true);
+    videoList->setDropIndicatorShown(true);
+    videoList->setDefaultDropAction(Qt::MoveAction);
+    videoList->setDragDropMode(QListWidget::InternalMove);
     
     // 创建右键菜单
     listContextMenu = new QMenu(this);
@@ -96,6 +105,12 @@ void MainWindow::createVideoList()
             this, &MainWindow::showListContextMenu);
     connect(videoList, &QListWidget::itemDoubleClicked,
             this, &MainWindow::onVideoItemDoubleClicked);
+    
+    // 监听模型变化，用于重新排列项目
+    connect(videoList->model(), &QAbstractItemModel::rowsMoved,
+            this, &MainWindow::onItemMoved);
+    connect(videoList->model(), &QAbstractItemModel::rowsRemoved,
+            this, &MainWindow::onItemMoved);
 }
 
 void MainWindow::createVideoPlayer()
@@ -104,10 +119,12 @@ void MainWindow::createVideoPlayer()
     videoWidget->setMinimumHeight(400);
 
     mediaPlayer = new QMediaPlayer(this);
+    
+    // 创建音频输出
+    audioOutput = new QAudioOutput(this);
+    mediaPlayer->setAudioOutput(audioOutput);
+    
     mediaPlayer->setVideoOutput(videoWidget);
-
-    // 注意：这里移除 positionSlider 的信号连接，因为它还没有被创建
-    // 我们会在 createControlButtons 之后再连接信号
 }
 
 QWidget* MainWindow::createControlButtons()
@@ -520,4 +537,18 @@ void MainWindow::extractThumbnail(const QString &videoPath, QListWidgetItem *ite
     // 启动进程
     QString ffmpegPath = QCoreApplication::applicationDirPath() + "/ffmpeg.exe";
     process->start(ffmpegPath, arguments);
+}
+
+void MainWindow::onItemMoved()
+{
+    // 收集所有项目
+    QList<QListWidgetItem*> items;
+    while (videoList->count() > 0) {
+        items.append(videoList->takeItem(0));
+    }
+
+    // 重新按顺序添加项目
+    for (QListWidgetItem* item : items) {
+        videoList->addItem(item);
+    }
 }
