@@ -50,6 +50,9 @@ private:
     void startMerging(const QString &outputFile);
     static void messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg);
     static MainWindow *instance;
+    
+    QString createTempThumbnailPath();
+    void extractThumbnail(const QString &videoPath, QListWidgetItem *item);
 
 private:
     Ui::MainWindow *ui;
@@ -79,5 +82,7 @@ private:
 
     QLabel *currentTimeLabel;
     QLabel *totalTimeLabel;
+
+    QProcess *thumbnailProcess;  // 用于提取缩略图
 };
 #endif // MAINWINDOW_H

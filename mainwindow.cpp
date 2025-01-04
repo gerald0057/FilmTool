@@ -77,6 +77,15 @@ void MainWindow::createVideoList()
     videoList = new QListWidget(mainSplitter);
     videoList->setContextMenuPolicy(Qt::CustomContextMenu);
     
+    // 设置图标视图模式
+    videoList->setViewMode(QListWidget::IconMode);
+    videoList->setIconSize(QSize(160, 90));  // 16:9 比例的缩略图
+    videoList->setSpacing(10);
+    videoList->setMovement(QListWidget::Static);
+    videoList->setResizeMode(QListWidget::Adjust);
+    videoList->setWrapping(true);
+    videoList->setUniformItemSizes(true);
+    
     // 创建右键菜单
     listContextMenu = new QMenu(this);
     listContextMenu->addAction("添加视频", this, &MainWindow::addVideoToList);
@@ -179,9 +188,17 @@ void MainWindow::addVideoToList()
         for (const QString &fileName : fileNames) {
             QListWidgetItem *item = new QListWidgetItem(QFileInfo(fileName).fileName());
             item->setData(Qt::UserRole, fileName);  // 存储完整路径
+            item->setSizeHint(QSize(180, 130));  // 设置项目大小，包含文本空间
+            
+            // 设置默认图标
+            item->setIcon(QIcon::fromTheme("video-x-generic"));
+            
             videoList->addItem(item);
+            
+            // 异步提取缩略图
+            extractThumbnail(fileName, item);
         }
-        mergeButton->setEnabled(videoList->count() > 1);  // 当列表中有多个视频时启用合并按钮
+        mergeButton->setEnabled(videoList->count() > 1);
     }
 }
 
@@ -459,4 +476,48 @@ void MainWindow::appendLog(const QString &text)
     // 滚动到底部
     QScrollBar *scrollBar = logOutput->verticalScrollBar();
     scrollBar->setValue(scrollBar->maximum());
+}
+
+QString MainWindow::createTempThumbnailPath()
+{
+    // 创建临时文件路径
+    QString tempPath = QDir::tempPath() + "/FilmTool_thumb_" + 
+                      QString::number(QDateTime::currentMSecsSinceEpoch()) + ".jpg";
+    return tempPath;
+}
+
+void MainWindow::extractThumbnail(const QString &videoPath, QListWidgetItem *item)
+{
+    QString thumbnailPath = createTempThumbnailPath();
+    
+    // 创建 FFmpeg 进程
+    QProcess *process = new QProcess(this);
+    
+    // 在进程完成时处理缩略图
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, process, thumbnailPath, item](int exitCode, QProcess::ExitStatus exitStatus) {
+                if (exitCode == 0) {
+                    QPixmap thumbnail(thumbnailPath);
+                    if (!thumbnail.isNull()) {
+                        // 设置缩略图为图标
+                        item->setIcon(QIcon(thumbnail));
+                    }
+                }
+                // 清理临时文件
+                QFile::remove(thumbnailPath);
+                process->deleteLater();
+            });
+
+    // 构建 FFmpeg 命令
+    QStringList arguments;
+    arguments << "-y"
+              << "-i" << videoPath
+              << "-ss" << "00:00:01"  // 从1秒处截图
+              << "-vframes" << "1"
+              << "-s" << "160x90"     // 缩略图尺寸
+              << thumbnailPath;
+
+    // 启动进程
+    QString ffmpegPath = QCoreApplication::applicationDirPath() + "/ffmpeg.exe";
+    process->start(ffmpegPath, arguments);
 }
