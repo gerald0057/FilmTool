@@ -27,6 +27,7 @@ MainWindow::MainWindow(QWidget *parent)
     , positionSlider(nullptr)
     , currentTimeLabel(nullptr)
     , totalTimeLabel(nullptr)
+    , removeAudioCheckBox(nullptr)
 {
     instance = this;  // 保存实例指针
     ui->setupUi(this);
@@ -74,7 +75,15 @@ void MainWindow::setupUI()
 
 void MainWindow::createVideoList()
 {
-    videoList = new CustomListWidget(mainSplitter);
+    // 创建组合框
+    QGroupBox *listGroup = new QGroupBox("视频列表", mainSplitter);
+    QVBoxLayout *listLayout = new QVBoxLayout(listGroup);
+    
+    // 设置最小宽度
+    listGroup->setMinimumWidth(210);
+    
+    // 创建列表
+    videoList = new CustomListWidget(listGroup);
     videoList->setContextMenuPolicy(Qt::CustomContextMenu);
     
     // 设置图标视图模式
@@ -95,6 +104,12 @@ void MainWindow::createVideoList()
     videoList->setDefaultDropAction(Qt::MoveAction);
     videoList->setDragDropMode(QListWidget::InternalMove);
     
+    // 将列表添加到布局中
+    listLayout->addWidget(videoList);
+    
+    // 将组合框添加到分割器中
+    mainSplitter->addWidget(listGroup);
+
     // 创建右键菜单
     listContextMenu = new QMenu(this);
     listContextMenu->addAction("添加视频", this, &MainWindow::addVideoToList);
@@ -179,15 +194,33 @@ QWidget* MainWindow::createControlButtons()
 
 void MainWindow::createConfigArea()
 {
+    // 创建配置区域的组合框
+    QGroupBox *settingsGroup = new QGroupBox("配置选项", this);
+    QVBoxLayout *settingsLayout = new QVBoxLayout(settingsGroup);
+    
+    // 创建消除音轨复选框
+    removeAudioCheckBox = new QCheckBox("消除音轨", this);
+    removeAudioCheckBox->setToolTip("勾选此项将在合并时移除所有视频的音轨");
+    settingsLayout->addWidget(removeAudioCheckBox);
+    
+    // 添加一些空白空间
+    settingsLayout->addStretch();
+    
+    // 创建日志输出组合框
     configGroup = new QGroupBox("日志输出", this);
-    QVBoxLayout *configLayout = new QVBoxLayout(configGroup);
+    QVBoxLayout *logLayout = new QVBoxLayout(configGroup);
     
     // 创建日志输出框
     logOutput = new QTextEdit(this);
     logOutput->setReadOnly(true);
-    logOutput->setFont(QFont("Consolas", 9));  // 使用等宽字体
-    logOutput->setLineWrapMode(QTextEdit::NoWrap);  // 不自动换行
-    configLayout->addWidget(logOutput);
+    logOutput->setFont(QFont("Consolas", 9));
+    logOutput->setLineWrapMode(QTextEdit::NoWrap);
+    logLayout->addWidget(logOutput);
+    
+    // 将两个组合框添加到右侧布局
+    QVBoxLayout *rightLayout = qobject_cast<QVBoxLayout*>(rightWidget->layout());
+    rightLayout->addWidget(settingsGroup);
+    rightLayout->addWidget(configGroup);
 }
 
 void MainWindow::showListContextMenu(const QPoint &pos)
@@ -369,12 +402,15 @@ void MainWindow::startMerging(const QString &outputFile)
 
     // 构建 FFmpeg 命令
     QStringList arguments;
-    arguments << "-y"  // 添加 -y 参数，自动覆盖已存在的文件
-              << "-f" << "concat"
-              << "-safe" << "0"
-              << "-i" << mergeList
-              << "-c" << "copy"
-              << outputFile;
+    arguments << "-y";  // 覆盖输出文件
+    arguments << "-f" << "concat" << "-safe" << "0" << "-i" << mergeList;
+    
+    // 根据复选框状态决定是否添加音频
+    if (removeAudioCheckBox->isChecked()) {
+        arguments << "-an";  // 添加 -an 参数来移除音频
+    }
+    
+    arguments << "-c" << "copy" << outputFile;
     
     qDebug() << "FFmpeg 命令:" << ffmpegPath << arguments.join(' ');
     mergeProcess->start(ffmpegPath, arguments);

@@ -16,6 +16,7 @@
 #include <QLabel>
 #include "customlistwidget.h"
 #include <QAudioOutput>
+#include <QCheckBox>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -89,5 +90,7 @@ private:
     QProcess *thumbnailProcess;  // 用于提取缩略图
 
     QAudioOutput* audioOutput;
+
+    QCheckBox *removeAudioCheckBox;  // 添加消除音轨复选框
 };
 #endif // MAINWINDOW_H

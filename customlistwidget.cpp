@@ -16,6 +16,9 @@ CustomListWidget::CustomListWidget(QWidget *parent)
     setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
     // 设置调整模式
     setResizeMode(QListView::Adjust);
+    
+    // 使用样式表设置内边距
+    setStyleSheet("QListWidget { padding: 10px; }");
 }
 
 void CustomListWidget::dragMoveEvent(QDragMoveEvent *event)
