@@ -10,6 +10,9 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# 设置输出目录
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS 
     Core
     Gui
@@ -29,11 +32,11 @@ set(PROJECT_SOURCES
     main.cpp
     mainwindow.cpp
     mainwindow.h
+    mainwindow.ui
 )
 
 add_executable(FilmTool
     ${PROJECT_SOURCES}
-    mainwindow.h mainwindow.cpp mainwindow.ui
 )
 
 target_link_libraries(FilmTool PRIVATE
@@ -43,3 +46,20 @@ target_link_libraries(FilmTool PRIVATE
     Qt${QT_VERSION_MAJOR}::Multimedia
     Qt${QT_VERSION_MAJOR}::MultimediaWidgets
 )
+
+# 复制 FFmpeg 到输出目录
+if(WIN32)
+    set(FFMPEG_FILES
+        ${CMAKE_SOURCE_DIR}/third_party/ffmpeg/ffmpeg.exe
+        ${CMAKE_SOURCE_DIR}/third_party/ffmpeg/ffplay.exe
+        ${CMAKE_SOURCE_DIR}/third_party/ffmpeg/ffprobe.exe
+    )
+    
+    foreach(FFMPEG_FILE ${FFMPEG_FILES})
+        add_custom_command(TARGET FilmTool POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${FFMPEG_FILE}
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        )
+    endforeach()
+endif()
