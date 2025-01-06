@@ -15,6 +15,7 @@
 #include <QTextEdit>
 #include <QScrollBar>
 #include <QFont>
+#include <QRegularExpression>
 
 MainWindow* MainWindow::instance = nullptr;
 
@@ -28,6 +29,10 @@ MainWindow::MainWindow(QWidget *parent)
     , currentTimeLabel(nullptr)
     , totalTimeLabel(nullptr)
     , removeAudioCheckBox(nullptr)
+    , processTimeLabel(nullptr)
+    , processStartTime()
+    , processTimer(nullptr)
+    , totalDuration(0)
 {
     instance = this;  // 保存实例指针
     ui->setupUi(this);
@@ -203,6 +208,36 @@ void MainWindow::createConfigArea()
     removeAudioCheckBox->setToolTip("勾选此项将在合并时移除所有视频的音轨");
     settingsLayout->addWidget(removeAudioCheckBox);
     
+    // 创建清晰度选择
+    QHBoxLayout *qualityLayout = new QHBoxLayout();
+    QLabel *qualityLabel = new QLabel("清晰度:", this);
+    qualityComboBox = new QComboBox(this);
+    qualityComboBox->addItem("原画质量", "original");
+    qualityComboBox->addItem("中等画质", "medium");
+    qualityComboBox->addItem("低清画质", "low");
+    qualityLayout->addWidget(qualityLabel);
+    qualityLayout->addWidget(qualityComboBox);
+    settingsLayout->addLayout(qualityLayout);
+    
+    // 创建帧率选择
+    QHBoxLayout *fpsLayout = new QHBoxLayout();
+    QLabel *fpsLabel = new QLabel("帧率:", this);
+    fpsComboBox = new QComboBox(this);
+    fpsComboBox->addItem("60 FPS", 60);
+    fpsComboBox->addItem("30 FPS", 30);
+    fpsLayout->addWidget(fpsLabel);
+    fpsLayout->addWidget(fpsComboBox);
+    settingsLayout->addLayout(fpsLayout);
+    
+    // 在配置区域添加处理时间显示
+    QHBoxLayout *timeLayout = new QHBoxLayout();
+    QLabel *timeLabel = new QLabel("处理时间:", this);
+    processTimeLabel = new QLabel("00:00:00", this);
+    timeLayout->addWidget(timeLabel);
+    timeLayout->addWidget(processTimeLabel);
+    timeLayout->addStretch();
+    settingsLayout->addLayout(timeLayout);
+    
     // 添加一些空白空间
     settingsLayout->addStretch();
     
@@ -248,7 +283,8 @@ void MainWindow::addVideoToList()
             // 异步提取缩略图
             extractThumbnail(fileName, item);
         }
-        mergeButton->setEnabled(videoList->count() > 1);
+        mergeButton->setEnabled(videoList->count() > 0);  // 只要有视频就使能
+        mergeButton->setText("合并导出");  // 更新按钮文字
     }
 }
 
@@ -257,7 +293,7 @@ void MainWindow::removeVideoFromList()
     QListWidgetItem *currentItem = videoList->currentItem();
     if (currentItem) {
         delete currentItem;
-        mergeButton->setEnabled(videoList->count() > 1);
+        mergeButton->setEnabled(videoList->count() > 0);  // 更新按钮状态
     }
 }
 
@@ -356,22 +392,126 @@ void MainWindow::mergeVideos()
 
 void MainWindow::startMerging(const QString &outputFile)
 {
-    // 清空之前的日志
-    logOutput->clear();
-    appendLog("开始合并视频...");
+    // 重置并开始计时
+    processStartTime = QTime::currentTime();
+    if (!processTimer) {
+        processTimer = new QTimer(this);
+        connect(processTimer, &QTimer::timeout, this, [this]() {
+            QTime currentTime = QTime::currentTime();
+            int elapsed = processStartTime.msecsTo(currentTime);
+            QTime displayTime = QTime(0, 0).addMSecs(elapsed);
+            processTimeLabel->setText(displayTime.toString("hh:mm:ss"));
+        });
+    }
+    processTimer->start(1000);  // 每秒更新一次
     
-    QString mergeList = createMergeList();
-    qDebug() << "合并列表文件路径:" << mergeList;
+    // 计算所有视频的总时长
+    totalDuration = 0;
+    for (int i = 0; i < videoList->count(); ++i) {
+        QProcess probe;
+        QStringList arguments;
+        QString videoPath = videoList->item(i)->data(Qt::UserRole).toString();
+        
+        arguments << "-v" << "error"
+                 << "-show_entries" << "format=duration"
+                 << "-of" << "default=noprint_wrappers=1:nokey=1"
+                 << videoPath;
+        
+        QString ffprobePath = QCoreApplication::applicationDirPath() + "/ffprobe.exe";
+        probe.start(ffprobePath, arguments);
+        probe.waitForFinished();
+        
+        QString output = probe.readAllStandardOutput();
+        double duration = output.toDouble();
+        totalDuration += qint64(duration * 1000);  // 转换为毫秒
+    }
     
-    // 创建进度对话框，设置为不确定模式
-    progressDialog = new QProgressDialog("正在合并视频...", "取消", 0, 0, this);
+    // 创建进度对话框
+    progressDialog = new QProgressDialog("正在处理视频...", "取消", 0, 100, this);
     progressDialog->setWindowModality(Qt::WindowModal);
     progressDialog->setAutoClose(true);
     progressDialog->setAutoReset(true);
     progressDialog->setMinimumDuration(0);
     progressDialog->setValue(0);
     
-    // 创建并配置合并进程
+    // 清空之前的日志
+    logOutput->clear();
+    appendLog("开始处理视频...");
+    
+    // 构建 FFmpeg 命令
+    QStringList arguments;
+    arguments << "-y";  // 覆盖输出文件
+    
+    // 添加多线程支持
+    arguments << "-threads" << "0";  // 0表示自动选择最优线程数
+    
+    if (videoList->count() > 1) {
+        // 多个视频需要合并
+        QString mergeList = createMergeList();
+        arguments << "-f" << "concat" << "-safe" << "0" << "-i" << mergeList;
+    } else {
+        // 单个视频直接处理
+        QString inputFile = videoList->item(0)->data(Qt::UserRole).toString();
+        arguments << "-i" << inputFile;
+    }
+    
+    // 根据清晰度设置视频参数
+    QString quality = qualityComboBox->currentData().toString();
+    if (quality == "medium") {
+        arguments << "-vf" << "scale=1280:720";  // 720p
+        arguments << "-b:v" << "2M";  // 2Mbps比特率
+    } else if (quality == "low") {
+        arguments << "-vf" << "scale=854:480";   // 480p
+        arguments << "-b:v" << "1M";  // 1Mbps比特率
+    }
+    
+    // 设置帧率
+    int fps = fpsComboBox->currentData().toInt();
+    arguments << "-r" << QString::number(fps);
+    
+    // 根据复选框状态决定是否添加音频
+    if (removeAudioCheckBox->isChecked()) {
+        arguments << "-an";  // 移除音频
+    }
+    
+    // 如果不是原画质量，使用更高压缩率的编码器
+    if (quality != "original") {
+        arguments << "-c:v" << "libx264" << "-preset" << "medium";
+        // 添加 x264 的多线程优化参数
+        arguments << "-x264-params" << "threads=auto";
+    } else {
+        arguments << "-c:v" << "copy";  // 原画质量时直接复制视频流
+    }
+    
+    if (!removeAudioCheckBox->isChecked() && quality != "original") {
+        arguments << "-c:a" << "aac" << "-b:a" << "128k";  // 音频编码设置
+    }
+    
+    arguments << outputFile;
+    
+    // 连接取消信号
+    connect(progressDialog, &QProgressDialog::canceled, this, [this]() {
+        if (mergeProcess && mergeProcess->state() == QProcess::Running) {
+            mergeProcess->kill();  // 强制终止进程
+            appendLog("用户取消了处理操作");
+            
+            // 清理临时文件
+            if (videoList->count() > 1) {
+                QString mergeListPath = QDir::tempPath() + "/merge_list.txt";
+                QFile::remove(mergeListPath);
+            }
+            
+            // 如果输出文件已经创建，则删除它
+            if (QFile::exists(currentMergeOutput)) {
+                QFile::remove(currentMergeOutput);
+            }
+        }
+    });
+    
+    // 启动 FFmpeg 进程
+    QString ffmpegPath = QCoreApplication::applicationDirPath() + "/ffmpeg.exe";
+    qDebug() << "FFmpeg 命令:" << ffmpegPath << arguments.join(' ');
+    
     mergeProcess = new QProcess(this);
     connect(mergeProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &MainWindow::onMergeProcessFinished);
@@ -393,38 +533,46 @@ void MainWindow::startMerging(const QString &outputFile)
             this, [this]() {
                 QString error = QString::fromLocal8Bit(mergeProcess->readAllStandardError());
                 appendLog(error);
+                
+                // 解析FFmpeg输出的时间信息
+                static QRegularExpression timeRegex("time=([0-9:.]+)");
+                QRegularExpressionMatch match = timeRegex.match(error);
+                if (match.hasMatch()) {
+                    QString timeStr = match.captured(1);
+                    QStringList timeParts = timeStr.split(":");
+                    if (timeParts.size() == 3) {
+                        qint64 hours = timeParts[0].toInt();
+                        qint64 minutes = timeParts[1].toInt();
+                        double seconds = timeParts[2].toDouble();
+                        qint64 currentMs = (hours * 3600 + minutes * 60 + seconds) * 1000;
+                        
+                        // 更新进度条
+                        if (totalDuration > 0) {
+                            int progress = (currentMs * 100) / totalDuration;
+                            progressDialog->setValue(progress);
+                        }
+                    }
+                }
             });
 
-    // 获取应用程序目录
-    QString appDir = QCoreApplication::applicationDirPath();
-    QString ffmpegPath = appDir + "/ffmpeg.exe";
-    qDebug() << "FFmpeg 路径:" << ffmpegPath;
-
-    // 构建 FFmpeg 命令
-    QStringList arguments;
-    arguments << "-y";  // 覆盖输出文件
-    arguments << "-f" << "concat" << "-safe" << "0" << "-i" << mergeList;
-    
-    // 根据复选框状态决定是否添加音频
-    if (removeAudioCheckBox->isChecked()) {
-        arguments << "-an";  // 添加 -an 参数来移除音频
-    }
-    
-    arguments << "-c" << "copy" << outputFile;
-    
-    qDebug() << "FFmpeg 命令:" << ffmpegPath << arguments.join(' ');
     mergeProcess->start(ffmpegPath, arguments);
 }
 
 void MainWindow::onMergeProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
-    qDebug() << "合并进程结束 - 退出码:" << exitCode << "退出状态:" << exitStatus;
+    // 停止计时器
+    if (processTimer) {
+        processTimer->stop();
+    }
+    
+    qDebug() << "处理进程结束 - 退出码:" << exitCode << "退出状态:" << exitStatus;
     
     progressDialog->close();
     delete progressDialog;
+    progressDialog = nullptr;
     
     if (exitCode == 0 && exitStatus == QProcess::NormalExit) {
-        QMessageBox::information(this, "完成", "视频合并完成！");
+        QMessageBox::information(this, "完成", "视频处理完成！");
         
         // 断开所有之前的连接
         disconnect(mediaPlayer, &QMediaPlayer::mediaStatusChanged, nullptr, nullptr);
@@ -489,13 +637,17 @@ void MainWindow::onMergeProcessFinished(int exitCode, QProcess::ExitStatus exitS
         mediaPlayer->play();
         mediaPlayer->pause();
     } else {
-        QString errorMessage = "视频合并失败！\n";
-        errorMessage += "退出码: " + QString::number(exitCode) + "\n";
-        errorMessage += "错误输出: " + mergeProcess->readAllStandardError();
-        QMessageBox::critical(this, "错误", errorMessage);
+        // 如果不是用户取消的（exitCode != -2），则显示错误消息
+        if (exitCode != -2) {
+            QString errorMessage = "视频处理失败！\n";
+            errorMessage += "退出码: " + QString::number(exitCode) + "\n";
+            errorMessage += "错误输出: " + mergeProcess->readAllStandardError();
+            QMessageBox::critical(this, "错误", errorMessage);
+        }
     }
 
     mergeProcess->deleteLater();
+    mergeProcess = nullptr;
 }
 
 void MainWindow::messageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)

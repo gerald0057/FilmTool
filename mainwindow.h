@@ -17,6 +17,9 @@
 #include "customlistwidget.h"
 #include <QAudioOutput>
 #include <QCheckBox>
+#include <QComboBox>
+#include <QTime>
+#include <QTimer>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -92,5 +95,13 @@ private:
     QAudioOutput* audioOutput;
 
     QCheckBox *removeAudioCheckBox;  // 添加消除音轨复选框
+
+    QComboBox *qualityComboBox;    // 清晰度下拉框
+    QComboBox *fpsComboBox;        // 帧率下拉框
+
+    QLabel *processTimeLabel;    // 处理时间显示标签
+    QTime processStartTime;      // 处理开始时间
+    QTimer *processTimer;        // 处理时间计时器
+    qint64 totalDuration;        // 所有视频的总时长
 };
 #endif // MAINWINDOW_H
