@@ -46,6 +46,7 @@ private slots:
     void onMergeProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void appendLog(const QString &text);
     void onItemMoved();
+    void showAboutDialog();
 
 private:
     void setupUI();

@@ -16,6 +16,7 @@
 #include <QScrollBar>
 #include <QFont>
 #include <QRegularExpression>
+#include "version.h"  // 添加版本头文件包含
 
 MainWindow* MainWindow::instance = nullptr;
 
@@ -41,6 +42,15 @@ MainWindow::MainWindow(QWidget *parent)
     qInstallMessageHandler(messageHandler);
     
     setupUI();
+    
+    // 创建并显示启动界面
+    // hide();  // 先隐藏主窗口
+    // SplashWindow *splash = new SplashWindow(size(), pos(), this);
+    // connect(splash, &SplashWindow::finished, this, [this]() {
+    //     show();  // 启动界面结束后显示主窗口
+    // });
+    
+    // splash->show();
 }
 
 MainWindow::~MainWindow()
@@ -50,6 +60,25 @@ MainWindow::~MainWindow()
 
 void MainWindow::setupUI()
 {
+    setWindowTitle("FilmTool");
+    
+    // 设置应用程序图标
+    setWindowIcon(QIcon(":/images/logo.png"));
+    
+    // 创建菜单栏
+    QMenuBar *menuBar = new QMenuBar(this);
+    setMenuBar(menuBar);
+    
+    // 创建帮助菜单
+    QMenu *helpMenu = menuBar->addMenu("帮助");
+    
+    // 创建关于动作
+    QAction *aboutAction = new QAction("关于", this);
+    helpMenu->addAction(aboutAction);
+    
+    // 连接关于动作的信号
+    connect(aboutAction, &QAction::triggered, this, &MainWindow::showAboutDialog);
+    
     // 创建主分割器
     mainSplitter = new QSplitter(Qt::Horizontal, this);
     setCentralWidget(mainSplitter);
@@ -739,4 +768,13 @@ void MainWindow::onItemMoved()
     for (QListWidgetItem* item : items) {
         videoList->addItem(item);
     }
+}
+
+void MainWindow::showAboutDialog()
+{
+    QString aboutText = QString("FilmTool 视频处理工具\n\n版本号: %1\n\n"
+                              "一个简单的视频处理工具，支持视频合并、转码等功能。")
+                              .arg(APP_VERSION);
+    
+    QMessageBox::about(this, "关于 FilmTool", aboutText);
 }

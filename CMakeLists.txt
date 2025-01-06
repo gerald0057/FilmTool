@@ -1,6 +1,20 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(FilmTool VERSION 0.1 LANGUAGES CXX)
+# 定义版本号
+set(APP_VERSION_MAJOR 1)
+set(APP_VERSION_MINOR 1)
+set(APP_VERSION_PATCH 0)
+
+# 创建版本号字符串
+set(APP_VERSION "${APP_VERSION_MAJOR}.${APP_VERSION_MINOR}.${APP_VERSION_PATCH}")
+
+project(FilmTool VERSION ${APP_VERSION} LANGUAGES CXX)
+
+# 配置版本头文件
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/version.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/version.h
+)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOUIC ON)
@@ -35,6 +49,9 @@ set(PROJECT_SOURCES
     mainwindow.ui
     customlistwidget.h
     customlistwidget.cpp
+    splashwindow.h
+    splashwindow.cpp
+    resources.qrc
 )
 
 add_executable(FilmTool
@@ -65,3 +82,8 @@ if(WIN32)
         )
     endforeach()
 endif()
+
+# 添加包含路径
+target_include_directories(FilmTool PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
