@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 
 # 定义版本号
 set(APP_VERSION_MAJOR 1)
-set(APP_VERSION_MINOR 1)
+set(APP_VERSION_MINOR 2)
 set(APP_VERSION_PATCH 0)
 
 # 创建版本号字符串
