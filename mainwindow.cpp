@@ -17,6 +17,7 @@
 #include <QFont>
 #include <QRegularExpression>
 #include "version.h"  // 添加版本头文件包含
+#include "splashwindow.h"  // 添加启动界面头文件包含
 
 MainWindow* MainWindow::instance = nullptr;
 
@@ -38,19 +39,30 @@ MainWindow::MainWindow(QWidget *parent)
     instance = this;  // 保存实例指针
     ui->setupUi(this);
     
+    // 提前设置窗口标题和大小
+    setWindowTitle("FilmTool");
+    resize(1200, 800);
+    
+    // 设置窗口位置到屏幕中央
+    QRect screenGeometry = QApplication::primaryScreen()->geometry();
+    int x = (screenGeometry.width() - width()) / 2;
+    int y = (screenGeometry.height() - height()) / 2;
+    move(x, y);
+    
     // 安装消息处理器
     qInstallMessageHandler(messageHandler);
     
+    // 先隐藏主窗口
+    hide();
     setupUI();
     
-    // 创建并显示启动界面
-    // hide();  // 先隐藏主窗口
-    // SplashWindow *splash = new SplashWindow(size(), pos(), this);
-    // connect(splash, &SplashWindow::finished, this, [this]() {
-    //     show();  // 启动界面结束后显示主窗口
-    // });
+    // 创建并显示启动界面，使用主窗口的实际位置
+    SplashWindow *splash = new SplashWindow(size(), this->pos(), nullptr);
+    connect(splash, &SplashWindow::finished, this, [this]() {
+        show();
+    });
     
-    // splash->show();
+    splash->show();
 }
 
 MainWindow::~MainWindow()
@@ -102,9 +114,6 @@ void MainWindow::setupUI()
     // 设置分割器比例
     mainSplitter->setStretchFactor(0, 1);  // 左侧列表
     mainSplitter->setStretchFactor(1, 3);  // 右侧区域
-
-    // 设置窗口大小
-    resize(1200, 800);
 }
 
 void MainWindow::createVideoList()

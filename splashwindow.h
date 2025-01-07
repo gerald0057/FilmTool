@@ -4,6 +4,11 @@
 #include <QWidget>
 #include <QLabel>
 #include <QTimer>
+#include <QApplication>
+#include <QScreen>
+#include <QStyle>
+#include <QPropertyAnimation>
+#include <QGraphicsOpacityEffect>
 
 class SplashWindow : public QWidget
 {
@@ -18,8 +23,13 @@ protected:
     void paintEvent(QPaintEvent *event) override;
 
 private:
+    void startFadeOut();
+
+private:
     QLabel *logoLabel;
     QTimer *timer;
+    QGraphicsOpacityEffect *opacityEffect;
+    QPropertyAnimation *fadeAnimation;
 };
 
 #endif // SPLASHWINDOW_H 
