@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2024 FilmTool
+ * 
+ * This software is released under the MIT License.
+ * https://opensource.org/licenses/MIT
+ */
+
 #include "customlistwidget.h"
 #include <QScrollBar>
 #include <QDebug>

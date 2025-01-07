@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2024 FilmTool
+ * 
+ * This software is released under the MIT License.
+ * https://opensource.org/licenses/MIT
+ */
+
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
